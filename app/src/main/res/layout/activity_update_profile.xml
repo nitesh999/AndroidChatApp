@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <data>
+
+        <import type="android.view.View" />
+
+        <variable
+            name="viewmodel"
+            type="com.example.chatapplication.viewmodels.UpdateUserProfileViewModel" />
+
+    </data>
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="@dimen/layout_padding_8dp">
+
+        <ProgressBar
+            android:id="@+id/progressBar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:visibility="@{viewmodel.showProgress ? View.VISIBLE : View.GONE}"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintRight_toRightOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <!--here height is being decided upon etUsername & etEmailAddress and width is being decided upon layout_constraintDimensionRatio i.e height-->
+        <ImageView
+            android:id="@+id/ivProfilePicture"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:background="#CACACA"
+            android:onClick="showImagePicker"
+            app:imageUrl="@{viewmodel.profilePic}"
+            android:scaleType="fitXY"
+            app:layout_constraintBottom_toBottomOf="@+id/etEmailAddress"
+            app:layout_constraintDimensionRatio="w,1:1"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@+id/etUsername" />
+
+        <EditText
+            android:id="@+id/etUsername"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:hint="Enter Username here..."
+            android:onTextChanged="@{viewmodel::onNameChanged}"
+            android:text="@={viewmodel.name}"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/ivProfilePicture"
+            app:layout_constraintTop_toBottomOf="@+id/btnLogin" />
+
+        <EditText
+            android:id="@+id/etEmailAddress"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:hint="Enter Email here..."
+            android:inputType="textEmailAddress"
+            android:onTextChanged="@{viewmodel::onEmailChanged}"
+            android:text="@={viewmodel.email}"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/ivProfilePicture"
+            app:layout_constraintTop_toBottomOf="@+id/etUsername" />
+
+        <Button
+            android:id="@+id/btnUpdateProfile"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:enabled="@{viewmodel.btnSelected}"
+            android:onClick="@{()->viewmodel.updateUserProfile()}"
+            android:text="Update Profile"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/etEmailAddress" />
+
+        <TextView
+            android:id="@+id/tvUserStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="30sp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.5"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/btnUpdateProfile" />
+
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</layout>
