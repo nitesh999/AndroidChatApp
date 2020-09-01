@@ -1,51 +1,41 @@
 package com.example.chatapplication.viewmodels
 
-import android.app.Application
 import android.content.Context
-import android.content.SharedPreferences
 import android.widget.Toast
-import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.MutableLiveData
-import androidx.work.*
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequest
+import androidx.work.WorkManager
 import com.example.chatapplication.ChatApplication
 import com.example.chatapplication.data.NotificationData
 import com.example.chatapplication.data.PushNotification
 import com.example.chatapplication.db.AppDatabase
 import com.example.chatapplication.db.OfflineSavedChatMessage
 import com.example.chatapplication.db.getInstance
+import com.example.chatapplication.di.component.AppComponent
+import com.example.chatapplication.di.helper.PreferencesHelper
+import com.example.chatapplication.di.helper.WorkMangerHelper
 import com.example.chatapplication.util.Constants
 import com.example.chatapplication.util.NetworkInfo
-import com.example.chatapplication.works.ChatMessageWork
 import kotlinx.coroutines.*
 import org.json.JSONObject
+import javax.inject.Inject
+import javax.inject.Named
 
 
-class ChatMessageViewModel(application: Application) : AndroidViewModel(application) {
+class ChatMessageViewModel(
+    private val chatApplication: Context, private val preferencesHelper: PreferencesHelper,
+    private val workManager: WorkManager, val offlineChatWork: OneTimeWorkRequest) : ViewModel() {
 
-    //lateinit var messagesList: MutableLiveData<NotificationData>
-    val mSharedPreference: SharedPreferences = application.getSharedPreferences(Constants.SHARED_PREFERENCE, Context.MODE_PRIVATE)
-    private val workManager = WorkManager.getInstance(application)
-    lateinit var offlineChatWork: OneTimeWorkRequest
     var eventOfflineNetworkListener = MutableLiveData<Boolean>(false)
-    /**
-     * This is the job for all coroutines started by this ViewModel.
-     *
-     * Cancelling this job will cancel all coroutines started by this ViewModel.
-     */
     private val viewModelJob = SupervisorJob()
-
-    /**
-     * This is the main scope for all coroutines launched by MainViewModel.
-     *
-     * Since we pass viewModelJob, you can cancel all coroutines launched by uiScope by calling
-     * viewModelJob.cancel()
-     */
     private val viewModelScope = CoroutineScope(viewModelJob + Dispatchers.Main)
-
 
     fun sendChatMessage(message:String, toUserId: String) {
         viewModelScope.launch {
-            if (NetworkInfo.isNetworkAvailable(getApplication())) {
+            if (NetworkInfo.isNetworkAvailable(chatApplication)) {
                 //val recipientUserId = "5e6610f8d4a93f48e459af05"
                 if (message.isNotEmpty() && toUserId.isNotEmpty()) {
                     PushNotification(NotificationData(message)).also {
@@ -58,61 +48,65 @@ class ChatMessageViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
-    fun startWorkManager(toUserId: String) {
-        //val getAllMessagesViewModel = GetAllMessagesViewModel(getApplication())
-        //val pendingMessages = getAllMessagesViewModel.getPendingMessages()
-        val chatData: Data = workDataOf("toUserId" to toUserId)
-        offlineChatWork = OneTimeWorkRequest.Builder(ChatMessageWork::class.java)
-            .setInputData(chatData)
-            .setConstraints(constraints)
-            .build()
-        workManager.enqueue(offlineChatWork)
-    }
-
-    // Create charging constraint
-    val constraints = Constraints.Builder()
-        .setRequiredNetworkType(NetworkType.CONNECTED)
-        .build()
-
-    fun saveMessageLocallyAndInitWorkmanager(toUserId: String, offlineSavedChatMessage: OfflineSavedChatMessage) =
-        CoroutineScope(Dispatchers.IO).launch {
-            val database: AppDatabase? = getInstance(getApplication())
-            database?.messageDao()?.insertMessage(offlineSavedChatMessage)
-            withContext(Dispatchers.Main) {
-                startWorkManager(toUserId)
-                eventOfflineNetworkListener.value = true
-                mSharedPreference.edit().putBoolean(Constants.IS_OFFLINE_PENDING_MESSAGE, true)
-                Toast.makeText(getApplication(), "Please Switch On Internet", Toast.LENGTH_LONG).show()
-            }
-
-    }
-
-    private suspend fun mangeOfflineChatMessages(toUserId: String, message: String) = withContext(Dispatchers.Main){
-        val userId = mSharedPreference.getString("userId", "")
-        if (userId != null && toUserId != null) {
-            val chatMessage = OfflineSavedChatMessage(message, userId, toUserId)
-            saveMessageLocallyAndInitWorkmanager(toUserId, chatMessage)
-        }
-    }
-
-    fun sendNotification(toUserId: String, notification: PushNotification) =
+    private fun sendNotification(toUserId: String, notification: PushNotification) =
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val userToken = mSharedPreference.getString("userToken", "")
+                val userToken = preferencesHelper.getString("userToken", "")
                 val bearerToken = "Bearer ${userToken}"
-                val response = ChatApplication.appComponent.getNetworkHelper().notificationAPI.triggerNodeNotification(bearerToken, toUserId, notification)
+                val response = ChatApplication.appComponent.getNetworkHelper().notificationAPI
+                    .triggerNodeNotification(bearerToken, toUserId, notification)
                 withContext(Dispatchers.Main) {
                     if (response.isSuccessful) {
                         val jsonObj = JSONObject(response.body()?.charStream()?.readText())
-                        Toast.makeText(getApplication(), jsonObj.getString("message"), Toast.LENGTH_LONG).show()
+                        Toast.makeText(chatApplication, jsonObj.getString("message"), Toast.LENGTH_LONG).show()
                     } else {
-                        Toast.makeText(getApplication(), response.errorBody().toString(), Toast.LENGTH_LONG).show()
+                        Toast.makeText(chatApplication, response.errorBody().toString(), Toast.LENGTH_LONG).show()
                     }
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(getApplication(), e.message, Toast.LENGTH_LONG).show()
+                    Toast.makeText(chatApplication, e.message, Toast.LENGTH_LONG).show()
                 }
             }
+    }
+
+    private suspend fun mangeOfflineChatMessages(toUserId: String, message: String) = withContext(Dispatchers.Main) {
+        val userId = preferencesHelper.getString("userId", "")
+        if (userId != null) {
+            val chatMessage = OfflineSavedChatMessage(message, userId, toUserId)
+            saveMessageLocally(toUserId, chatMessage)
+            if(!WorkMangerHelper.getWorkStatus(chatApplication))
+                workManager.enqueueUniqueWork(Constants.IS_OFFLINE_PENDING_MESSAGE, ExistingWorkPolicy.REPLACE, offlineChatWork)
+            }
+    }
+
+    private fun saveMessageLocally(toUserId: String, offlineSavedChatMessage: OfflineSavedChatMessage) =
+        CoroutineScope(Dispatchers.IO).launch {
+            val database: AppDatabase? = getInstance(chatApplication)
+            database?.messageDao()?.insertMessage(offlineSavedChatMessage)
+            preferencesHelper.putStringSet("toUserIdMessagePendingList", toUserId)
+            withContext(Dispatchers.Main) {
+                eventOfflineNetworkListener.value = true
+                Toast.makeText(chatApplication, "Please Switch On Internet", Toast.LENGTH_LONG).show()
+            }
+    }
+
+    class Factory() : ViewModelProvider.Factory {
+        @Inject @Named("appcontext")
+        lateinit var chatApplication: Context
+        @Inject
+        lateinit var prefHelper: PreferencesHelper
+        @Inject
+        lateinit var oneTimeWorkRequest: OneTimeWorkRequest
+        val workManager = WorkManager.getInstance(chatApplication)
+
+        override fun <T : ViewModel?> create(modelClass: Class<T>): T {
+            val appComponent: AppComponent = ChatApplication.appComponent
+            if (modelClass.isAssignableFrom(ChatMessageViewModel::class.java)) {
+                appComponent.inject(this)
+                return ChatMessageViewModel(chatApplication, prefHelper, workManager, oneTimeWorkRequest) as T
+            }
+            throw IllegalArgumentException("Unable to construct viewmodel")
         }
+    }
 }

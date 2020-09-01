@@ -1,23 +1,25 @@
 package com.example.chatapplication.services
 
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
+import android.content.*
 import android.net.ConnectivityManager
 import android.net.ConnectivityManager.NetworkCallback
 import android.net.Network
 import android.net.NetworkInfo
 import android.net.NetworkRequest
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import androidx.annotation.RequiresApi
-import androidx.lifecycle.Observer
+import com.example.chatapplication.ChatApplication
+import com.example.chatapplication.data.NotificationData
+import com.example.chatapplication.data.PushNotification
 import com.example.chatapplication.db.OfflineSavedChatMessage
+import com.example.chatapplication.util.Constants
 import com.example.chatapplication.viewmodels.MessagesViewModel
 import com.firebase.jobdispatcher.JobParameters
 import com.firebase.jobdispatcher.JobService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 
 class ConnectivityJob : JobService() {
@@ -25,10 +27,12 @@ class ConnectivityJob : JobService() {
     private lateinit var connectivityChange: BroadcastReceiver
     private lateinit var networkCallback: NetworkCallback
     private lateinit var connectivityManager: ConnectivityManager
+    private lateinit var mSharedPreference: SharedPreferences
 
     override fun onCreate() {
         super.onCreate()
         mContext = this;
+        mSharedPreference = mContext.getSharedPreferences(Constants.SHARED_PREFERENCE, Context.MODE_PRIVATE)
     }
 
     override fun onStartJob(job: JobParameters): Boolean {
@@ -44,24 +48,27 @@ class ConnectivityJob : JobService() {
                         //val database: AppDatabase? = AppDatabase.getInstance(applicationContext)
                         //val allPendingMessages = database?.messageDao()?.loadAllMessages();
                         val toUserId = job.extras?.getString("toUserId");
-                        val messagesViewModel: MessagesViewModel = MessagesViewModel(mContext);
-                        Handler(Looper.getMainLooper()).post {
-                            messagesViewModel.getPendingMessagesByToUserId(toUserId)
-                                .observeForever(object : Observer<List<OfflineSavedChatMessage>> {
-                                    override fun onChanged(pendingMessageOfflineSaveds: List<OfflineSavedChatMessage>) {
-                                        // do something with stuff
-                                        if (pendingMessageOfflineSaveds != null) {
-                                            for (message in pendingMessageOfflineSaveds) {
-                                                /*PushNotification(NotificationData(message.message)).also {
-                                                    sendNotification(message.toId, it)
-                                                }*/
-                                            }
+                        val messagesViewModel = MessagesViewModel(mContext);
+                        val listOfflineSavedChatMessage : List<OfflineSavedChatMessage> = messagesViewModel.getPendingMessagesByToUserId(toUserId)
+                        // do something with stuff
+                        if (listOfflineSavedChatMessage != null) {
+                            for (message in listOfflineSavedChatMessage) {
+                                PushNotification(NotificationData(message.message)).let {
+                                    CoroutineScope(Dispatchers.IO).launch {
+                                        val userToken = mSharedPreference.getString("userToken", "")
+                                        val bearerToken = "Bearer $userToken"
+                                        val response = ChatApplication.appComponent.getNetworkHelper().notificationAPI
+                                            .triggerNodeNotification(bearerToken, message.toId, it)
+                                        if (response.isSuccessful) {
+                                            messagesViewModel.deletePendingMessageById(message.messageId)
+                                            val jsonObj = JSONObject(response.body()?.charStream()?.readText())
+                                        } else {
                                         }
                                     }
-                                })
+                                }
+                            }
                         }
                     }
-
                     override fun onLost(network: Network?) {
                         println("onLost")
                     }
@@ -106,23 +113,4 @@ class ConnectivityJob : JobService() {
     private enum class ConnectionType {
         MOBILE, WIFI, VPN, OTHER
     }
-
-    /*private fun sendNotification(toUserId: String, notification: PushNotification) =
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val response = RetrofitInstance.notificationAPI.triggerNodeNotification(toUserId, notification)
-                withContext(Dispatchers.Main) {
-                    if (response.isSuccessful) {
-                        val jsonObj = JSONObject(response.body()?.charStream()?.readText())
-                        Toast.makeText(this@ConnectivityJob, jsonObj.getString("message"), Toast.LENGTH_LONG).show()
-                    } else {
-                        Toast.makeText(this@ConnectivityJob, response.errorBody().toString(), Toast.LENGTH_LONG).show()
-                    }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(this@ConnectivityJob, e.message, Toast.LENGTH_LONG).show()
-                }
-            }
-    }*/
 }

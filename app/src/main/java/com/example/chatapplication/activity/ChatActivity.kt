@@ -32,7 +32,7 @@ class ChatActivity : AppCompatActivity() {
         val binding: ActivityChatBinding = DataBindingUtil.setContentView(this, R.layout.activity_chat)
         binding.lifecycleOwner = this
 
-        chatMessageViewModel = ViewModelProviders.of(this).get(ChatMessageViewModel::class.java)
+        chatMessageViewModel = ViewModelProviders.of(this, ChatMessageViewModel.Factory()).get(ChatMessageViewModel::class.java)
         binding.lifecycleOwner = this
         binding.viewModel = chatMessageViewModel
         binding.executePendingBindings()
@@ -59,11 +59,6 @@ class ChatActivity : AppCompatActivity() {
                 if (isNetworkError)
                     startListeningSentMessageStatus()
             })
-
-        /*chatMessageViewModel.messagesList.observe(this,
-            Observer<NotificationData> {
-                Log.d("Your added data : ", it.message)
-            })*/
     }
 
     override fun onStart() {
@@ -72,22 +67,22 @@ class ChatActivity : AppCompatActivity() {
     }
 
     private fun startListeningSentMessageStatus() {
-        WorkManager.getInstance(this)
+        WorkManager.getInstance(applicationContext)
             .getWorkInfoByIdLiveData(chatMessageViewModel.offlineChatWork.id)
             .observe(this, Observer { info ->
                 if (info != null && info.state.isFinished) {
                     val myResult = info.outputData.getString(Constants.KEY_RESULT)
                     chatMessageViewModel.eventOfflineNetworkListener.value = false
                     Toast.makeText(applicationContext, myResult, Toast.LENGTH_LONG).show()
-                    if (info.state === WorkInfo.State.SUCCEEDED)
-                        WorkManager.getInstance(this).cancelWorkById(chatMessageViewModel.offlineChatWork.id)
-                    // ... do something with the result ...
+                    if (info.state === WorkInfo.State.SUCCEEDED) {
+                    }
+                    WorkManager.getInstance(applicationContext).cancelUniqueWork(Constants.IS_OFFLINE_PENDING_MESSAGE)
                 }
         })
     }
 
-    private val listener = MyBroadcastReceiver()
-    inner class MyBroadcastReceiver : BroadcastReceiver() {
+    private val listener = NotificationBroadcastReceiver()
+    inner class NotificationBroadcastReceiver : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent){
             when (intent.action) {
                 "APPEND_MESSAGE" -> {
@@ -102,14 +97,12 @@ class ChatActivity : AppCompatActivity() {
     }
 
     fun addItems(newItem: NotificationData) {
-        val position: Int = chatListAdapter.notificationChatList.size + 1
         chatListAdapter.notificationChatList.add(newItem)
-        //chatListAdapter.notifyItemInserted(position)
         chatListAdapter.notifyDataSetChanged()
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
+    override fun onStop() {
+        super.onStop()
         LocalBroadcastManager.getInstance(this).unregisterReceiver(listener)
     }
 }

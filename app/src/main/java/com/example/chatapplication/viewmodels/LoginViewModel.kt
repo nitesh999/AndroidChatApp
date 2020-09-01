@@ -118,9 +118,6 @@ open class LoginViewModel(private val preferencesHelper: PreferencesHelper) : Vi
         viewModelJob.cancel()
     }
 
-    /**
-     * Factory for constructing DevByteViewModel with parameter
-     */
     class Factory() : ViewModelProvider.Factory {
         @Inject
         lateinit var prefHelper: PreferencesHelper

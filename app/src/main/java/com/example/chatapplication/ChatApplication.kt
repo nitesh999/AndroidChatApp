@@ -1,9 +1,13 @@
 package com.example.chatapplication
 
 import android.app.Activity
+import android.app.ActivityManager
 import android.app.Application
+import android.content.Context
 import android.os.Build
 import android.os.Bundle
+import androidx.work.Constraints
+import androidx.work.NetworkType
 import com.example.chatapplication.db.getInstance
 import com.example.chatapplication.di.component.AppComponent
 import com.example.chatapplication.di.component.DaggerAppComponent
@@ -13,7 +17,6 @@ import com.firebase.jobdispatcher.*
 
 
 class ChatApplication : Application() {
-
 
     companion object {
         private lateinit var _appComponent: AppComponent
@@ -27,9 +30,20 @@ class ChatApplication : Application() {
         fun getActiveActivity(): Activity? {
             return activeActivity
         }
-    }
-    //get() = appComponent
 
+        fun isAppOnForeground(context: Context): Boolean {
+            val activityManager =
+                context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val appProcesses = activityManager.runningAppProcesses ?: return false
+            val packageName = context.packageName
+            for (appProcess in appProcesses) {
+                if (appProcess.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND && appProcess.processName == packageName) {
+                    return true
+                }
+            }
+            return false
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -70,6 +84,11 @@ class ChatApplication : Application() {
             }
         })
     }
+
+    // Create charging constraint
+    private val constraints = Constraints.Builder()
+        .setRequiredNetworkType(NetworkType.CONNECTED)
+        .build()
 
     fun scheduleJob() {
         val bundle = Bundle()

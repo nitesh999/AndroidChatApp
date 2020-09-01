@@ -19,11 +19,17 @@ interface ChatMessageDao {
     @Query("SELECT * FROM message")
     fun loadAllMessages(): LiveData<List<OfflineSavedChatMessage>>
 
+    @Query("SELECT * FROM message")
+    fun loadAllMessagesList(): List<OfflineSavedChatMessage>
+
     @Query("SELECT * FROM message WHERE messageId = :id")
     fun loadMessageById(id: String?): LiveData<List<OfflineSavedChatMessage>>
 
     @Query("SELECT * FROM message WHERE toId = :id")
     fun loadMessageByToUserId(id: String?): LiveData<List<OfflineSavedChatMessage>>
+
+    @Query("SELECT * FROM message WHERE toId = :id")
+    fun loadMessageByToUserIdList(id: String?): List<OfflineSavedChatMessage>
 
     @Query("DELETE FROM message")
     fun deleteAllMessages()

@@ -16,15 +16,9 @@ import javax.inject.Inject
 class UserListViewModel(prefHelper: PreferencesHelper, userRepository: UserRepository) : ViewModel() {
 
     private val mPrefHelper = prefHelper
-
-    /**
-     * The data source this ViewModel will fetch results from.
-     */
     private val mUserRepository = userRepository
-
     var userList = getFilteredListById(userRepository.users)
 
-    //var userList1 = getFilteredListByEmailOrName("")
     private val query = MutableLiveData<String>()
     var userListUI: LiveData<List<User>> = Transformations.switchMap(query) { searchText ->
         var tempUserList: List<User>? = userList.value
@@ -108,8 +102,7 @@ class UserListViewModel(prefHelper: PreferencesHelper, userRepository: UserRepos
         }
     }
 
-    //@WorkerThread
-    fun getFilteredListById(userList: LiveData<List<User>>): LiveData<List<User>> {
+    private fun getFilteredListById(userList: LiveData<List<User>>): LiveData<List<User>> {
         val userId = mPrefHelper.getString("userId", "")
         return Transformations.map(userList) {
             it.filterNot { it._id == userId }
@@ -120,25 +113,16 @@ class UserListViewModel(prefHelper: PreferencesHelper, userRepository: UserRepos
         query.value = searchText
     }
 
-    /**
-     * Resets the network error flag.
-     */
     fun onNetworkErrorShown() {
         _isNetworkErrorShown.value = true
     }
 
 
-    /**
-     * Cancel all coroutines when the ViewModel is cleared
-     */
     override fun onCleared() {
         super.onCleared()
         viewModelJob.cancel()
     }
 
-    /**
-     * Factory for constructing DevByteViewModel with parameter
-     */
     class Factory() : ViewModelProvider.Factory {
         @Inject
         lateinit var userRepository: UserRepository
@@ -148,7 +132,7 @@ class UserListViewModel(prefHelper: PreferencesHelper, userRepository: UserRepos
 
         override fun <T : ViewModel?> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(UserListViewModel::class.java)) {
-                var appComponent: AppComponent = ChatApplication.appComponent
+                val appComponent: AppComponent = ChatApplication.appComponent
                 appComponent.inject(this)
                 @Suppress("UNCHECKED_CAST")
                 return UserListViewModel(prefHelper, userRepository) as T

@@ -1,7 +1,5 @@
 package com.example.chatapplication.services
 
-import android.app.ActivityManager
-import android.app.ActivityManager.RunningAppProcessInfo
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.NotificationManager.IMPORTANCE_HIGH
@@ -47,7 +45,7 @@ class FirebaseService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
         println("onMessageReceived")
-        val isForeground = isAppOnForeground(this)
+        val isForeground = ChatApplication.isAppOnForeground(this)
         if(isForeground && ChatApplication.getActiveActivity() is ChatActivity){
             val localIntent = Intent("APPEND_MESSAGE").putExtra("MESSAGE", message.data["message"])
             LocalBroadcastManager.getInstance(this).sendBroadcast(localIntent)
@@ -84,20 +82,6 @@ class FirebaseService : FirebaseMessagingService() {
         }
         notificationManager.createNotificationChannel(channel)
     }
-
-    private fun isAppOnForeground(context: Context): Boolean {
-        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-        val appProcesses = activityManager.runningAppProcesses ?: return false
-        val packageName = context.packageName
-        for (appProcess in appProcesses) {
-            if (appProcess.importance == RunningAppProcessInfo.IMPORTANCE_FOREGROUND && appProcess.processName == packageName) {
-                return true
-            }
-        }
-        return false
-    }
-
-
 }
 
 

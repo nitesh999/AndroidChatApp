@@ -46,6 +46,8 @@ class MainActivity : AppCompatActivity() {
         val userId = mPreferencesHelper.getString("userId",null)
         if(!userId.isNullOrEmpty()){
             group.visibility = View.GONE
+        }else{
+            btnLogout.visibility = View.GONE
         }
 
         btnRegister.setOnClickListener {
@@ -54,6 +56,12 @@ class MainActivity : AppCompatActivity() {
 
         btnLogin.setOnClickListener {
             startActivity(Intent(this, LoginActivity::class.java))
+        }
+
+        btnLogout.setOnClickListener {
+            mPreferencesHelper.putString("userId",null)
+            group.visibility = View.VISIBLE
+            btnLogout.visibility = View.GONE
         }
 
         btnGoogleSignIn.setOnClickListener {

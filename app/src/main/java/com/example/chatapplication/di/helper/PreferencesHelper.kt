@@ -66,6 +66,16 @@ class PreferencesHelper {
         editor.putInt(key, value).apply()
     }
 
+    private fun getStringSet(key: String?): MutableSet<String>? {
+        return preferences.getStringSet(key, HashSet())
+    }
+
+    fun putStringSet(key: String?, value: String) {
+        val mutableSet: MutableSet<String>? = getStringSet(key)
+        mutableSet?.add(value)
+        preferences.edit().putStringSet(key, mutableSet).apply()
+    }
+
     fun remove(key: String?) {
         editor.remove(key).apply()
     }
